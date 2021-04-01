@@ -33,7 +33,7 @@ def displayFrames(V, N, pauseTime):
         plt.pause(pauseTime)
 
 pauseTime = 0.01
-displayFrames(V, N, pauseTime)
+#displayFrames(V, N, pauseTime)
 
 # ----------- FRAME CHOICE -----------
 chosenFrame = 6
@@ -64,7 +64,7 @@ def displayGradient(Vx, Vy, Vt, gradientName, chosenFrame):
     plt.show()
 
 gradientName = 'LOW LEVEL GRADIENT'
-displayGradient(Vx, Vy, Vt, gradientName, chosenFrame)
+#displayGradient(Vx, Vy, Vt, gradientName, chosenFrame)
 
 # ----------- PREWITT KERNELS (2D) -----------
 prewitt_x = np.array([[1, 0, -1],[1, 0, -1],[1, 0, -1]]) # -> left
@@ -114,46 +114,39 @@ Vy = filters.sobel(V, axis = 1)
 Vt = filters.sobel(V, axis = 2)
 
 gradientName = 'SOBEL'
-displayGradient(Vx, Vy, Vt, gradientName, chosenFrame)
+#displayGradient(Vx, Vy, Vt, gradientName, chosenFrame)
 
 # ----------- SOLUTIONS TO THE LUCAS-KANADE SYSTEM -----------
-x = 180 # x-position of the chosen pixel
-y = 130 # y-position of the chosen pixel
-t = chosenFrame # t-position of the chosen pixel
+p_x = 180 # x-position of the chosen pixel
+p_y = 130 # y-position of the chosen pixel
+p_t = chosenFrame # t-position of the chosen pixel
 
 N = 3 # selected region (N x N)
 
-# SELECT GRADIENT ON THE REGION
-VxN = Vx[int(x-((N-1)/2)):int(x+((N-1)/2)+1), int(y-((N-1)/2)):int(y+((N-1)/2)+1), :]
-VyN = Vy[int(x-((N-1)/2)):int(x+((N-1)/2)+1), int(y-((N-1)/2)):int(y+((N-1)/2)+1), :]
-VtN = Vt[int(x-((N-1)/2)):int(x+((N-1)/2)+1), int(y-((N-1)/2)):int(y+((N-1)/2)+1), :]
-
 # SET UP LUCAS-KANADE SYSTEM
-# A = np.empty((N*N, 2))
-# b = np.empty((N*N))
-# dx = np.zeros((nx, ny, 64))
-# dy = np.zeros((nx, ny, 64))
-#
-# counter = 0
-# for m in range(1, nx-1):
-#     for n in range(1, ny-1):
-#         x = m
-#         y = n
-#         for k in range(64):
-#             for i in range(int(x-((N-1)/2)), int(x+((N-1)/2)+1)):
-#                 for j in range(int(y-((N-1)/2)), int(y+((N-1)/2)+1)):
-#                     A[counter, :] = [Vx[i, j, k], Vy[i, j, k]]
-#                     b[counter] = -Vt[i, j, k]
-#                     counter += 1
-#             counter = 0
-#             dx[m, n, k] = np.linalg.lstsq(A[:, :], b, rcond=None)[0][0]
-#             dy[m, n, k] = np.linalg.lstsq(A[:, :], b, rcond=None)[0][1]
-#
-# fig, ax = plt.subplots()
-# x, y = np.meshgrid(np.arange(1, nx - 1, 10), np.arange(1, ny - 1, 10))
-# for i in range(0, 64):
-#     ax.cla()
-#     ax.imshow(V[:,:,i],cmap = plt.cm.gray)
-#     ax.quiver(x, y, dx[0:-1:10, 0:-1:10, i], dy[0:-1:10, 0:-1:10, i])
-#     ax.set_title('frame {}'.format(i+1))
-#     plt.pause(1)
+A = np.empty((N*N, 2))
+b = np.empty((N*N))
+dx = np.zeros((nx, ny, 64))
+dy = np.zeros((nx, ny, 64))
+
+c = 0
+for t in range(0, 64):
+    for x in range(1, nx-1):
+        for y in range(1, ny-1):
+            for i in range(int(x-((N-1)/2)), int(x+((N-1)/2)+1)):
+                for j in range(int(y-((N-1)/2)), int(y+((N-1)/2)+1)):
+                    A[c, :] = [Vx[i, j, t], Vy[i, j, t]]
+                    b[c] = -Vt[i, j, t]
+                    c += 1
+            c = 0
+            dx[x, y, t] = np.linalg.lstsq(A, b, rcond=None)[0][0]
+            dy[x, y, t] = np.linalg.lstsq(A, b, rcond=None)[0][1]
+
+fig, ax = plt.subplots()
+x, y = np.meshgrid(np.arange(1, nx - 1, 10), np.arange(1, ny - 1, 10))
+for i in range(0, 64):
+    ax.cla()
+    ax.imshow(V[:,:,i],cmap = plt.cm.gray)
+    ax.quiver(x, y, dx[1:-1:10, 1:-1:10, i], dy[1:-1:10, 1:-1:10, i])
+    ax.set_title('frame {}'.format(i+1))
+    plt.pause(1)
