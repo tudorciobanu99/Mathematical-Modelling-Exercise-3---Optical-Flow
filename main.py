@@ -52,7 +52,6 @@ Vx, Vy, Vt = lowLevelGradient(V)
 # ----------- DISPLAY GRADIENT -----------
 def displayGradient(Vx, Vy, Vt, gradientName, chosenFrame):
     fig, ax = plt.subplots(nrows = 1, ncols = 3)
-    fig.suptitle('Frame ' + str(chosenFrame + 1) + ' (' + gradientName +')')
     ax[0].imshow(Vx[:,:,chosenFrame],cmap = plt.cm.gray)
     ax[0].set_title('$V_x$')
     ax[1].imshow(Vy[:,:,chosenFrame],cmap = plt.cm.gray)
@@ -60,7 +59,7 @@ def displayGradient(Vx, Vy, Vt, gradientName, chosenFrame):
     ax[2].imshow(Vt[:,:,chosenFrame],cmap = plt.cm.gray)
     ax[2].set_title('$V_t$')
     fig.tight_layout()
-    fig.subplots_adjust(top=0.88)
+    plt.savefig(str(gradientName) + '-' + str(chosenFrame) + '.png', dpi = 300)
     plt.show()
 
 gradientName = 'LOW LEVEL GRADIENT'
@@ -86,6 +85,7 @@ def display2Dfilter(Vx, Vy, filterName, chosenFrame):
     plt.show()
 
 filterName = 'PREWITT 2D'
+
 #display2Dfilter(Vx, Vy, filterName, chosenFrame)
 
 # ----------- SOBEL KERNELS (2D) -----------
@@ -98,6 +98,16 @@ Vy = convolve(V[:, :, chosenFrame], sobel_y)
 filterName = 'SOBEL 2D'
 #display2Dfilter(Vx, Vy, filterName, chosenFrame)
 
+# ----------- FILTERS HEAD TO HEAD -----------
+# fig, ax = plt.subplots(nrows = 1, ncols = 2)
+# ax[0].imshow(sobel_x, cmap = plt.cm.gray)
+# ax[0].set_title('Sobel')
+# ax[1].imshow(prewitt_x, cmap = plt.cm.gray)
+# ax[1].set_title('Prewitt')
+# fig.tight_layout()
+# plt.savefig('sobel.png', dpi = 300)
+# plt.show()
+
 # ----------- FLIPPING DIRECTION OF REFERENCE -----------
 sobel_x = sobel_x*(-1) # -> right
 sobel_y = sobel_y*(-1) # -> down
@@ -109,19 +119,38 @@ filterName = 'FLIPPED SOBEL 2D'
 #display2Dfilter(Vx, Vy, filterName, chosenFrame)
 
 # ----------- SOBEL GRADIENT CALCULATION -----------
-Vx = filters.sobel(V, axis = 0)
-Vy = filters.sobel(V, axis = 1)
-Vt = filters.sobel(V, axis = 2)
+Vx = ndimage.sobel(V, 1)
+Vy = ndimage.sobel(V, 0)
+Vt = ndimage.sobel(V, 2)
 
 gradientName = 'SOBEL'
-#displayGradient(Vx, Vy, Vt, gradientName, chosenFrame)
+displayGradient(Vx, Vy, Vt, gradientName, chosenFrame)
 
 # ----------- SOLUTIONS TO THE LUCAS-KANADE SYSTEM -----------
-p_x = 180 # x-position of the chosen pixel
-p_y = 130 # y-position of the chosen pixel
+p_x = 48 # x-position of the chosen pixel
+p_y = 128 # y-position of the chosen pixel
 p_t = chosenFrame # t-position of the chosen pixel
 
 N = 3 # selected region (N x N)
+
+# SINGLE LOCAL REGION IN A SINGLE FRAME
+A = np.empty((N*N, 2))
+b = np.empty((N*N))
+
+c = 0
+for i in range(int(p_x-((N-1)/2)), int(p_x+((N-1)/2)+1)):
+    for j in range(int(p_y-((N-1)/2)), int(p_y+((N-1)/2)+1)):
+        A[c, :] = [Vx[i, j, chosenFrame], Vy[i, j, chosenFrame]]
+        b[c] = -Vt[i, j, chosenFrame]
+        c += 1
+dr, residuals, rank, s = np.linalg.lstsq(A, b, rcond = None)
+
+fig, ax = plt.subplots()
+px, py = np.meshgrid(p_x, p_y)
+ax.imshow(V[:,:,chosenFrame],cmap = plt.cm.gray)
+ax.quiver(px, py, dr[0], dr[1], color = 'red')
+plt.savefig('one_point_' + str(N) + '.png', dpi = 300)
+plt.show()
 
 # SET UP LUCAS-KANADE SYSTEM
 A = np.empty((N*N, 2))
@@ -130,23 +159,24 @@ dx = np.zeros((nx, ny, 64))
 dy = np.zeros((nx, ny, 64))
 
 c = 0
-for t in range(0, 64):
-    for x in range(1, nx-1):
-        for y in range(1, ny-1):
-            for i in range(int(x-((N-1)/2)), int(x+((N-1)/2)+1)):
-                for j in range(int(y-((N-1)/2)), int(y+((N-1)/2)+1)):
-                    A[c, :] = [Vx[i, j, t], Vy[i, j, t]]
-                    b[c] = -Vt[i, j, t]
-                    c += 1
-            c = 0
-            dx[x, y, t] = np.linalg.lstsq(A, b, rcond=None)[0][0]
-            dy[x, y, t] = np.linalg.lstsq(A, b, rcond=None)[0][1]
+t = 40 # a t loop can be easily constructed, it was avoided here to save time for verification purposes
+for x in range(N, nx-N):
+    for y in range(N, ny-N):
+        for i in range(int(x-((N-1)/2)), int(x+((N-1)/2)+1)):
+            for j in range(int(y-((N-1)/2)), int(y+((N-1)/2)+1)):
+                A[c, :] = [Vx[i, j, t], Vy[i, j, t]]
+                b[c] = -Vt[i, j, t]
+                c += 1
+        c = 0
+        dr, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
+        dx[x, y, t] = dr[0]
+        dy[x, y, t] = dr[1]
 
+px = np.arange(N, nx-N, 10)
+py = np.arange(N, ny-N, 10)
 fig, ax = plt.subplots()
-x, y = np.meshgrid(np.arange(1, nx - 1, 10), np.arange(1, ny - 1, 10))
-for i in range(0, 64):
-    ax.cla()
-    ax.imshow(V[:,:,i],cmap = plt.cm.gray)
-    ax.quiver(x, y, dx[1:-1:10, 1:-1:10, i], dy[1:-1:10, 1:-1:10, i])
-    ax.set_title('frame {}'.format(i+1))
-    plt.pause(1)
+x, y = np.meshgrid(px, py)
+ax.imshow(V[:,:,t],cmap = plt.cm.gray)
+ax.quiver(x, y, dx[:, :, t][np.ix_(px,py)], dy[:, :, t][np.ix_(px,py)], color = 'red')
+plt.savefig('toy_frame_' + str(40) + '.png')
+plt.show()
